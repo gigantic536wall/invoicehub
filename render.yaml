@@ -1,0 +1,18 @@
+# Render Blueprint: Docker web service in Frankfurt. The database is external (Neon, free tier).
+services:
+  - type: web
+    name: invoicehub
+    runtime: docker
+    plan: free
+    region: frankfurt
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: ConnectionStrings__Default
+        sync: false # paste the PostgreSQL URL in the Render dashboard
+      - key: Jwt__Key
+        generateValue: true
+      - key: Demo__Enabled
+        value: "true"

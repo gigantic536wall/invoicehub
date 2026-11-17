@@ -47,8 +47,9 @@ For XRechnung the seller profile (`PUT /api/me`) needs a contact name, phone and
 - [x] PostgreSQL with EF Core, gapless invoice numbers
 - [x] REST API with JWT auth and OpenAPI docs
 - [x] Integration tests against a real PostgreSQL database
-- [x] PDF invoices and XRechnung (UBL) export, validated with KoSIT in CI (87 tests in total)
-- [ ] Docker and live demo
+- [x] PDF invoices and XRechnung (UBL) export, validated with KoSIT in CI
+- [x] Docker image, smoke-tested in CI; one-click demo accounts (91 tests in total)
+- [ ] Live demo
 
 ## Run locally
 
@@ -65,6 +66,21 @@ dotnet ef database update -p src/InvoiceHub.Api
 dotnet run --project src/InvoiceHub.Api   # API docs on http://localhost:5xxx/docs
 dotnet test
 ```
+
+## Docker and deployment
+
+```bash
+docker build -t invoicehub .
+docker run -p 8080:8080 \
+  -e ConnectionStrings__Default="postgres://user:password@host:5432/invoicehub" \
+  -e Jwt__Key="<at least 32 random characters>" \
+  -e Demo__Enabled=true \
+  invoicehub
+```
+
+The image runs as a non-root user, applies database migrations on start and accepts both Npgsql connection strings and `postgres://` URLs.
+[`render.yaml`](render.yaml) deploys it to Render (Frankfurt); the database is a free Neon PostgreSQL instance.
+With `Demo__Enabled`, `POST /api/demo` creates a demo seller with sample customers and invoices; demo accounts are deleted after 24 hours.
 
 ## License notes
 
