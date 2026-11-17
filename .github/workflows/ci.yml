@@ -103,7 +103,7 @@ jobs:
             -e Jwt__Key="$(openssl rand -base64 48)" \
             -e Demo__Enabled=true \
             invoicehub
-          for i in $(seq 1 30); do curl -fs localhost:8080/healthz && break; sleep 1; done
+          for i in $(seq 1 60); do curl -fs localhost:8080/healthz && break; sleep 1; done; echo
           curl -fsS localhost:8080/docs -o /dev/null
           token=$(curl -fsS -X POST localhost:8080/api/demo | jq -r .accessToken)
           id=$(curl -fsS -H "Authorization: Bearer $token" localhost:8080/api/invoices | jq -r '.[] | select(.status=="Issued") | .id')
@@ -113,4 +113,7 @@ jobs:
           grep -q 'xrechnung_3.0' invoice.xml
           echo "image size: $(docker image inspect invoicehub --format '{{.Size}}' | numfmt --to=iec)"
       - if: failure()
-        run: docker logs api
+        run: |
+          docker ps -a
+          docker inspect api --format "{{json .State}}"
+          docker logs api 2>&1
