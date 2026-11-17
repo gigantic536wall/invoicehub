@@ -83,7 +83,10 @@ public static class XRechnung
             new XElement(Cac + "AccountingCustomerParty", PartyElement(doc.Buyer, includeVatId: doc.Buyer.VatId is not null && !outOfScope, contact: false)),
             new XElement(Cac + "Delivery",                                     // date of supply = invoice date (§ 14 UStG)
                 Cbc_("ActualDeliveryDate", Date(i.IssueDate!.Value)),          // BT-72, required for intra-community supplies (BR-IC-11)
-                new XElement(Cac + "DeliveryLocation", new XElement(Cac + "Address",
+                new XElement(Cac + "DeliveryLocation", new XElement(Cac + "Address", // BG-15: the customer's address
+                    Cbc_("StreetName", doc.Buyer.Street),
+                    Cbc_("CityName", doc.Buyer.City),                          // BR-DE-10
+                    Cbc_("PostalZone", doc.Buyer.PostalCode),                  // BR-DE-11
                     new XElement(Cac + "Country", Cbc_("IdentificationCode", doc.Buyer.Country))))), // BT-80 (BR-IC-12)
             new XElement(Cac + "PaymentMeans",
                 Cbc_("PaymentMeansCode", "58"),                                // SEPA credit transfer
