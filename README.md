@@ -5,7 +5,7 @@
 A REST API for customers and invoices that gets European VAT right and produces PDF invoices and German e-invoices (XRechnung).
 Every build checks the generated e-invoices with the official KoSIT validator.
 
-> 🚧 Work in progress: Docker and a live demo are coming next.
+**Live demo:** [invoicehub-bjmj.onrender.com/docs](https://invoicehub-bjmj.onrender.com/docs): call `POST /api/demo` to get a token for a demo account with sample invoices, then try the PDF and XRechnung downloads. (Free hosting: the first request after a pause can take up to a minute.)
 
 <p align="center"><img src="docs/invoice-domestic.png" width="560" alt="Generated PDF invoice with 19 % and 7 % VAT"></p>
 
@@ -49,7 +49,7 @@ For XRechnung the seller profile (`PUT /api/me`) needs a contact name, phone and
 - [x] Integration tests against a real PostgreSQL database
 - [x] PDF invoices and XRechnung (UBL) export, validated with KoSIT in CI
 - [x] Docker image, smoke-tested in CI; one-click demo accounts (91 tests in total)
-- [ ] Live demo
+- [x] Live demo on Render (Frankfurt) with Neon PostgreSQL
 
 ## Run locally
 
