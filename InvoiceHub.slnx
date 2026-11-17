@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/InvoiceHub.Api/InvoiceHub.Api.csproj" />
+    <Project Path="src/InvoiceHub.Domain/InvoiceHub.Domain.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/InvoiceHub.Tests/InvoiceHub.Tests.csproj" />
+  </Folder>
+</Solution>

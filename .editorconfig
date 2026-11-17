@@ -1,0 +1,19 @@
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+insert_final_newline = true
+charset = utf-8
+
+[*.{json,yml,yaml,props,csproj,slnx}]
+indent_size = 2
+
+[*.cs]
+# Library code in a web API: ConfigureAwait is not needed (no SynchronizationContext).
+dotnet_diagnostic.CA2007.severity = none
+# Domain exceptions are thrown with a message; the standard constructors are not needed.
+dotnet_diagnostic.CA1032.severity = none
+# Test method names use underscores to read like sentences.
+dotnet_diagnostic.CA1707.severity = none
