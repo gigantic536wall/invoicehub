@@ -1,8 +1,13 @@
 # InvoiceHub: invoicing API for EU freelancers and small businesses
 
-A REST API for customers and invoices that gets European VAT right and produces German e-invoices (XRechnung).
+[![CI](https://github.com/gigantic536wall/invoicehub/actions/workflows/ci.yml/badge.svg)](https://github.com/gigantic536wall/invoicehub/actions/workflows/ci.yml)
 
-> 🚧 Work in progress: PDF and XRechnung export, Docker and a live demo are coming next.
+A REST API for customers and invoices that gets European VAT right and produces PDF invoices and German e-invoices (XRechnung).
+Every build checks the generated e-invoices with the official KoSIT validator.
+
+> 🚧 Work in progress: Docker and a live demo are coming next.
+
+<p align="center"><img src="docs/invoice-domestic.png" width="560" alt="Generated PDF invoice with 19 % and 7 % VAT"></p>
 
 ## Why
 
@@ -13,6 +18,8 @@ InvoiceHub implements the rules an invoicing backend needs, with tests for each 
 
 - **EU VAT rules:** standard rates of all 27 member states, reverse charge for B2B services within the EU, tax-free intra-community supplies of goods, exports, with the legally required invoice note in English and German.
 - **Totals exactly as EN 16931 requires:** VAT is calculated per rate on the summed line amounts, not per line (the difference shows up in cents, and validators reject the invoice).
+- **XRechnung 3.0 e-invoices** (UBL 2.1, EN 16931) for every VAT situation, validated in CI with the [official KoSIT validator](https://github.com/itplr-kosit/validator), the one German public authorities use. If data required by XRechnung is missing (e.g. the seller's contact person), the API lists exactly what to add instead of producing an invalid file.
+- **PDF invoices** in German business-letter layout (DIN 5008 address window, bilingual German/English) with VAT breakdown, tax notes and payment details.
 - **VAT ID validation** for 16 countries, including the ISO 7064 check digit of German VAT IDs.
 - **Bookkeeping rules (GoBD):** issued invoices are immutable, corrections need a cancellation with a reason.
 - **Gapless invoice numbers** (2026-0001, 2026-0002 …) per seller and year, guaranteed by PostgreSQL even under concurrent requests (tested with 20 parallel requests).
@@ -23,16 +30,25 @@ InvoiceHub implements the rules an invoicing backend needs, with tests for each 
 
 ## Tech stack
 
-C# 14 · .NET 10 (LTS) · ASP.NET Core minimal APIs · Entity Framework Core · PostgreSQL · JWT · OpenAPI + Scalar · xUnit · WebApplicationFactory · strict compiler settings (nullable, warnings as errors, analyzers)
+C# 14 · .NET 10 (LTS) · ASP.NET Core minimal APIs · Entity Framework Core · PostgreSQL · JWT · OpenAPI + Scalar · QuestPDF · UBL / XRechnung · xUnit · WebApplicationFactory · GitHub Actions · strict compiler settings (nullable, warnings as errors, analyzers)
+
+## Export endpoints
+
+| Endpoint | Result |
+| --- | --- |
+| `GET /api/invoices/{id}/pdf` | PDF invoice (drafts are marked "ENTWURF / DRAFT") |
+| `GET /api/invoices/{id}/xrechnung` | XRechnung 3.0 XML, or `422` with the list of missing data |
+
+For XRechnung the seller profile (`PUT /api/me`) needs a contact name, phone and IBAN, and the customer needs an email address.
 
 ## Roadmap
 
-- [x] Domain: amounts, VAT categories, tax rules, VAT IDs, invoice lifecycle + 45 tests
+- [x] Domain: amounts, VAT categories, tax rules, VAT IDs, invoice lifecycle
 - [x] PostgreSQL with EF Core, gapless invoice numbers
 - [x] REST API with JWT auth and OpenAPI docs
-- [x] Integration tests against a real PostgreSQL database (64 tests in total)
-- [ ] PDF invoices and XRechnung (UBL) export
-- [ ] Docker, CI and live demo
+- [x] Integration tests against a real PostgreSQL database
+- [x] PDF invoices and XRechnung (UBL) export, validated with KoSIT in CI (86 tests in total)
+- [ ] Docker and live demo
 
 ## Run locally
 
@@ -49,3 +65,7 @@ dotnet ef database update -p src/InvoiceHub.Api
 dotnet run --project src/InvoiceHub.Api   # API docs on http://localhost:5xxx/docs
 dotnet test
 ```
+
+## License notes
+
+PDFs are generated with [QuestPDF](https://www.questpdf.com/) under its Community license (free for individuals and companies with less than USD 1M annual revenue).

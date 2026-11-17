@@ -14,6 +14,9 @@ public sealed class User
     public required string Country { get; set; }
     public string? VatId { get; set; }
     public string? Iban { get; set; }
+    /// <summary>Contact person and phone: required on XRechnung e-invoices (BR-DE-2).</summary>
+    public string? ContactName { get; set; }
+    public string? Phone { get; set; }
     public string InvoicePrefix { get; set; } = string.Empty;
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

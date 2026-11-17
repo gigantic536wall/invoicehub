@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using InvoiceHub.Api.Auth;
 using InvoiceHub.Api.Data;
+using InvoiceHub.Api.Export;
 using InvoiceHub.Api.Services;
 using InvoiceHub.Domain;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -23,7 +24,9 @@ public sealed record InvoiceRequest(
     SupplyType SupplyType,
     [property: Required, MinLength(1), MaxLength(200)] List<LineRequest> Lines,
     [property: StringLength(3, MinimumLength = 3)] string Currency = "EUR",
-    [property: MaxLength(2000)] string? Note = null);
+    [property: MaxLength(2000)] string? Note = null,
+    /// <summary>Buyer reference (BT-10): purchase order number, or the Leitweg-ID for German public authorities.</summary>
+    [property: MaxLength(100)] string? BuyerReference = null);
 
 public sealed record IssueRequest(DateOnly? IssueDate = null, [property: Range(0, 180)] int PaymentTermDays = 14);
 public sealed record PayRequest(DateOnly PaidOn);
@@ -37,7 +40,7 @@ public sealed record VatBreakdownResponse(VatCategory Category, string CategoryC
 
 public sealed record InvoiceResponse(
     Guid Id, string? Number, InvoiceStatus Status, Guid CustomerId, string Currency,
-    DateOnly? IssueDate, DateOnly? DueDate, DateOnly? PaidOn, string? Note, string? TaxNote, string? CancellationReason,
+    DateOnly? IssueDate, DateOnly? DueDate, DateOnly? PaidOn, string? Note, string? TaxNote, string? BuyerReference, string? CancellationReason,
     IReadOnlyList<LineResponse> Lines, IReadOnlyList<VatBreakdownResponse> VatBreakdown,
     decimal NetTotal, decimal VatTotal, decimal GrossTotal, decimal AmountDue)
 {
@@ -46,7 +49,7 @@ public sealed record InvoiceResponse(
         var t = i.CalculateTotals();
         return new InvoiceResponse(
             i.Id, i.Number, i.Status, i.CustomerId, i.Currency, i.IssueDate, i.DueDate, i.PaidOn, i.Note, i.TaxNote,
-            i.CancellationReason,
+            i.BuyerReference, i.CancellationReason,
             [.. i.Lines.Select(l => new LineResponse(l.Description, l.Quantity, l.Unit, l.UnitPrice, l.DiscountPercent,
                 l.VatCategory, l.VatCategory.Code(), l.VatRate, l.NetAmount))],
             [.. t.VatBreakdown.Select(b => new VatBreakdownResponse(b.Category, b.Category.Code(), b.Rate, b.TaxableAmount, b.TaxAmount))],
@@ -70,7 +73,44 @@ public static class InvoiceEndpoints
         g.MapPost("/{id:guid}/issue", Issue).WithSummary("Issue: assigns the next gapless number and locks the invoice");
         g.MapPost("/{id:guid}/pay", Pay).WithSummary("Mark an issued invoice as paid");
         g.MapPost("/{id:guid}/cancel", Cancel).WithSummary("Cancel an issued invoice, with a reason");
+        g.MapGet("/{id:guid}/pdf", Pdf).WithSummary("PDF in German business-letter layout (drafts are marked as such)")
+            .Produces(StatusCodes.Status200OK, contentType: "application/pdf");
+        g.MapGet("/{id:guid}/xrechnung", XRechnungXml).WithSummary("German e-invoice: XRechnung 3.0 (UBL 2.1, EN 16931)")
+            .Produces(StatusCodes.Status200OK, contentType: "application/xml");
     }
+
+    private static async Task<Results<FileContentHttpResult, NotFound>> Pdf(Guid id, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    {
+        var doc = await InvoiceDocument.LoadAsync(db, user.UserId(), id, ct);
+        return doc is null
+            ? TypedResults.NotFound()
+            : TypedResults.File(InvoicePdf.Render(doc), "application/pdf", $"{FileName(doc)}.pdf");
+    }
+
+    private static async Task<Results<FileContentHttpResult, NotFound, UnprocessableEntity<HttpValidationProblemDetails>>> XRechnungXml(
+        Guid id, ClaimsPrincipal user, AppDbContext db, CancellationToken ct)
+    {
+        var doc = await InvoiceDocument.LoadAsync(db, user.UserId(), id, ct);
+        if (doc is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        if (XRechnung.MissingData(doc) is { Count: > 0 } missing)
+        {
+            return TypedResults.UnprocessableEntity(new HttpValidationProblemDetails
+            {
+                Title = "XRechnung needs more data",
+                Status = StatusCodes.Status422UnprocessableEntity,
+                Errors = new Dictionary<string, string[]> { ["xrechnung"] = [.. missing] },
+            });
+        }
+
+        return TypedResults.File(System.Text.Encoding.UTF8.GetBytes(XRechnung.Write(doc)), "application/xml", $"{FileName(doc)}.xml");
+    }
+
+    private static string FileName(InvoiceDocument doc) =>
+        doc.Invoice.Number is { } number ? $"invoice-{number}" : $"draft-{doc.Invoice.Id:N}";
 
     private static async Task<Ok<List<InvoiceSummary>>> List(
         ClaimsPrincipal user, AppDbContext db, InvoiceStatus? status, Guid? customerId, CancellationToken ct)
@@ -235,6 +275,7 @@ public static class InvoiceEndpoints
         }
 
         invoice.SetNotes(req.Note, tax.InvoiceNote);
+        invoice.SetBuyerReference(req.BuyerReference);
         return null;
     }
 }

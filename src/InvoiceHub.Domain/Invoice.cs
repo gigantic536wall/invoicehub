@@ -115,6 +115,8 @@ public sealed class Invoice
     public DateOnly? DueDate { get; private set; }
     public DateOnly? PaidOn { get; private set; }
     public string? Note { get; private set; }
+    /// <summary>Buyer reference (BT-10), e.g. a purchase order number or the Leitweg-ID of a public authority.</summary>
+    public string? BuyerReference { get; private set; }
     public string? TaxNote { get; private set; }
     public string? CancellationReason { get; private set; }
     public IReadOnlyList<InvoiceLine> Lines => _lines;
@@ -129,6 +131,12 @@ public sealed class Invoice
     {
         EnsureDraft();
         _lines.Clear();
+    }
+
+    public void SetBuyerReference(string? reference)
+    {
+        EnsureDraft();
+        BuyerReference = string.IsNullOrWhiteSpace(reference) ? null : reference.Trim();
     }
 
     public void SetNotes(string? note, string? taxNote)

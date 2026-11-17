@@ -22,6 +22,8 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.Property(u => u.VatId).HasMaxLength(20);
             e.Property(u => u.Iban).HasMaxLength(34);
             e.Property(u => u.InvoicePrefix).HasMaxLength(10);
+            e.Property(u => u.ContactName).HasMaxLength(200);
+            e.Property(u => u.Phone).HasMaxLength(40);
         });
 
         modelBuilder.Entity<Customer>(e =>
@@ -54,6 +56,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
             e.Property(i => i.Currency).HasMaxLength(3).IsFixedLength();
             e.Property(i => i.Number).HasMaxLength(30);
             e.Property(i => i.Note).HasMaxLength(2000);
+            e.Property(i => i.BuyerReference).HasMaxLength(100);
             e.Property(i => i.TaxNote).HasMaxLength(500);
             e.Property(i => i.CancellationReason).HasMaxLength(500);
             // The same number can never be used twice by one seller, even if application code has a bug.

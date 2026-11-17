@@ -17,13 +17,30 @@ public sealed record RegisterRequest(
     [property: Required, MaxLength(100)] string City,
     [property: Required, StringLength(2, MinimumLength = 2)] string Country,
     string? VatId,
-    [property: MaxLength(34)] string? Iban);
+    [property: MaxLength(34)] string? Iban,
+    [property: MaxLength(200)] string? ContactName = null,
+    [property: Phone, MaxLength(40)] string? Phone = null);
+
+public sealed record UpdateProfileRequest(
+    [property: Required, MaxLength(200)] string CompanyName,
+    [property: Required, MaxLength(200)] string Street,
+    [property: Required, MaxLength(20)] string PostalCode,
+    [property: Required, MaxLength(100)] string City,
+    string? VatId,
+    [property: MaxLength(34)] string? Iban,
+    [property: MaxLength(200)] string? ContactName,
+    [property: Phone, MaxLength(40)] string? Phone,
+    [property: MaxLength(10), RegularExpression(@"^[A-Za-z0-9-]*$")] string? InvoicePrefix);
 
 public sealed record LoginRequest([property: Required] string Email, [property: Required] string Password);
 
 public sealed record SellerProfile(
     Guid Id, string Email, string CompanyName, string Street, string PostalCode, string City, string Country,
-    string? VatId, string? Iban);
+    string? VatId, string? Iban, string? ContactName, string? Phone, string InvoicePrefix)
+{
+    public static SellerProfile From(User u) =>
+        new(u.Id, u.Email, u.CompanyName, u.Street, u.PostalCode, u.City, u.Country, u.VatId, u.Iban, u.ContactName, u.Phone, u.InvoicePrefix);
+}
 
 public static class AuthEndpoints
 {
@@ -35,6 +52,8 @@ public static class AuthEndpoints
         auth.MapPost("/login", Login).WithSummary("Get an access token");
 
         app.MapGet("/api/me", Me).WithTags("Auth").RequireAuthorization().WithSummary("The signed-in seller");
+        app.MapPut("/api/me", UpdateProfile).WithTags("Auth").RequireAuthorization()
+            .WithSummary("Update company data, bank account, contact and invoice number prefix");
     }
 
     private static async Task<Results<Created<TokenResponse>, Conflict<string>, ValidationProblem>> Register(
@@ -77,7 +96,9 @@ public static class AuthEndpoints
             City = req.City.Trim(),
             Country = country,
             VatId = vatId,
-            Iban = req.Iban?.Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant(),
+            Iban = NormalizeIban(req.Iban),
+            ContactName = string.IsNullOrWhiteSpace(req.ContactName) ? null : req.ContactName.Trim(),
+            Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim(),
         };
         user.PasswordHash = hasher.HashPassword(user, req.Password);
         db.Users.Add(user);
@@ -117,8 +138,49 @@ public static class AuthEndpoints
         var u = await db.Users.FindAsync([principal.UserId()], ct);
         return u is null
             ? TypedResults.NotFound()
-            : TypedResults.Ok(new SellerProfile(u.Id, u.Email, u.CompanyName, u.Street, u.PostalCode, u.City, u.Country, u.VatId, u.Iban));
+            : TypedResults.Ok(SellerProfile.From(u));
     }
+
+    private static async Task<Results<Ok<SellerProfile>, NotFound, ValidationProblem>> UpdateProfile(
+        UpdateProfileRequest req, System.Security.Claims.ClaimsPrincipal principal, AppDbContext db, CancellationToken ct)
+    {
+        var u = await db.Users.FindAsync([principal.UserId()], ct);
+        if (u is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        string? vatId = null;
+        if (!string.IsNullOrWhiteSpace(req.VatId))
+        {
+            if (!VatId.TryParse(req.VatId, out var parsed, out var error))
+            {
+                return Problems.Field("vatId", error!);
+            }
+
+            if (parsed.Country != u.Country)
+            {
+                return Problems.Field("vatId", "The VAT ID must be from the seller's country.");
+            }
+
+            vatId = parsed.Value;
+        }
+
+        u.CompanyName = req.CompanyName.Trim();
+        u.Street = req.Street.Trim();
+        u.PostalCode = req.PostalCode.Trim();
+        u.City = req.City.Trim();
+        u.VatId = vatId;
+        u.Iban = NormalizeIban(req.Iban);
+        u.ContactName = string.IsNullOrWhiteSpace(req.ContactName) ? null : req.ContactName.Trim();
+        u.Phone = string.IsNullOrWhiteSpace(req.Phone) ? null : req.Phone.Trim();
+        u.InvoicePrefix = req.InvoicePrefix?.Trim().ToUpperInvariant() ?? string.Empty;
+        await db.SaveChangesAsync(ct);
+        return TypedResults.Ok(SellerProfile.From(u));
+    }
+
+    private static string? NormalizeIban(string? iban) =>
+        string.IsNullOrWhiteSpace(iban) ? null : iban.Replace(" ", "", StringComparison.Ordinal).ToUpperInvariant();
 }
 
 public static class Problems

@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: invoicehub_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      ConnectionStrings__Test: Host=localhost;Database=invoicehub_test;Username=postgres;Password=postgres
+      XRECHNUNG_SAMPLES_DIR: ${{ github.workspace }}/samples
+      DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet build -c Release
+      - run: dotnet test -c Release --no-build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sample-invoices
+          path: samples/
+
+  # Validates the generated XRechnung samples with the official KoSIT validator,
+  # the same rule set German public-sector portals use to accept or reject e-invoices.
+  xrechnung:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: sample-invoices
+          path: samples
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Download validator and XRechnung configuration
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download -R itplr-kosit/validator --pattern '*.zip' -D dl/validator
+          gh release download -R itplr-kosit/validator-configuration-xrechnung --pattern '*.zip' -D dl/config
+          unzip -q -o 'dl/validator/*.zip' -d validator
+          unzip -q -o 'dl/config/*.zip' -d config
+      - name: Validate
+        run: |
+          jar=$(find validator -name '*standalone*.jar' | head -1)
+          scenarios=$(find config -name scenarios.xml | head -1)
+          echo "validator: $jar, scenarios: $scenarios"
+          java -jar "$jar" -s "$scenarios" -r "$(dirname "$scenarios")" -o reports samples/*.xml || true
+          ls reports
+          count=$(ls reports/*.xml 2>/dev/null | wc -l)
+          if [ "$count" -ne "$(ls samples/*.xml | wc -l)" ]; then echo "::error::expected one report per sample"; exit 1; fi
+          failed=0
+          for r in reports/*.xml; do
+            if grep -q '<rep:accept' "$r"; then echo "ACCEPTED  $r"; else echo "::error::REJECTED $r"; grep -o 'message>[^<]*' "$r" | head -20; failed=1; fi
+          done
+          exit $failed
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kosit-reports
+          path: reports/
