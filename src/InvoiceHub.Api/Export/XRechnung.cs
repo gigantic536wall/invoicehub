@@ -81,6 +81,10 @@ public static class XRechnung
             Cbc_("BuyerReference", i.BuyerReference ?? doc.Buyer.Name),        // BT-10, mandatory in XRechnung (BR-DE-15)
             new XElement(Cac + "AccountingSupplierParty", PartyElement(doc.Seller, includeVatId: !outOfScope, contact: true)),
             new XElement(Cac + "AccountingCustomerParty", PartyElement(doc.Buyer, includeVatId: doc.Buyer.VatId is not null && !outOfScope, contact: false)),
+            new XElement(Cac + "Delivery",                                     // date of supply = invoice date (§ 14 UStG)
+                Cbc_("ActualDeliveryDate", Date(i.IssueDate!.Value)),          // BT-72, required for intra-community supplies (BR-IC-11)
+                new XElement(Cac + "DeliveryLocation", new XElement(Cac + "Address",
+                    new XElement(Cac + "Country", Cbc_("IdentificationCode", doc.Buyer.Country))))), // BT-80 (BR-IC-12)
             new XElement(Cac + "PaymentMeans",
                 Cbc_("PaymentMeansCode", "58"),                                // SEPA credit transfer
                 Cbc_("PaymentID", i.Number),                                   // BT-83: reference for the transfer
@@ -92,7 +96,7 @@ public static class XRechnung
                 t.VatBreakdown.Select(b => new XElement(Cac + "TaxSubtotal",
                     Amount("TaxableAmount", b.TaxableAmount, cur),            // BT-116
                     Amount("TaxAmount", b.TaxAmount, cur),                    // BT-117
-                    TaxCategory("TaxCategory", b.Category, b.Rate, exemptionReason: b.Category.HasRate() ? null : i.TaxNote)))),
+                    TaxCategory("TaxCategory", b.Category, b.Rate, exemptionReason: b.Category.HasRate() ? null : i.TaxNote, breakdown: true)))),
             new XElement(Cac + "LegalMonetaryTotal",
                 Amount("LineExtensionAmount", t.NetTotal, cur),               // BT-106
                 Amount("TaxExclusiveAmount", t.NetTotal, cur),                // BT-109
@@ -113,6 +117,8 @@ public static class XRechnung
     private static XElement PartyElement(Party p, bool includeVatId, bool contact) =>
         new(Cac + "Party",
             new XElement(Cbc + "EndpointID", new XAttribute("schemeID", "EM"), p.Email),   // BT-34 / BT-49: e-mail address
+            // BT-29: when the VAT ID may not appear (category "O"), the seller still needs an identifier (BR-CO-26).
+            contact && !includeVatId && p.VatId is not null ? new XElement(Cac + "PartyIdentification", Cbc_("ID", p.VatId)) : null,
             new XElement(Cac + "PostalAddress",
                 Cbc_("StreetName", p.Street),
                 Cbc_("CityName", p.City),
@@ -148,10 +154,11 @@ public static class XRechnung
             new XElement(Cac + "Price", Amount("PriceAmount", l.UnitPrice, cur, decimals: 4)));
     }
 
-    private static XElement TaxCategory(string name, VatCategory category, decimal rate, string? exemptionReason) =>
+    private static XElement TaxCategory(string name, VatCategory category, decimal rate, string? exemptionReason, bool breakdown = false) =>
         new(Cac + name,
             Cbc_("ID", category.Code()),
-            category == VatCategory.NotSubject ? null : Cbc_("Percent", Number(rate)),     // BR-O-05: no rate for "O"
+            // Lines of category "O" carry no rate (BR-O-05); the breakdown always needs one in XRechnung (BR-DE-14).
+            category == VatCategory.NotSubject && !breakdown ? null : Cbc_("Percent", Number(rate)),
             exemptionReason is null ? null : Cbc_("TaxExemptionReason", exemptionReason),
             new XElement(Cac + "TaxScheme", Cbc_("ID", "VAT")));
 

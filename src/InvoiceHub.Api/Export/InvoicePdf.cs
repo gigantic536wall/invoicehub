@@ -71,9 +71,9 @@ public static class InvoicePdf
                             c.Item().PaddingTop(2).Text($"USt-IdNr. / VAT ID: {doc.Buyer.VatId}").FontSize(8.5f);
                         }
                     });
-                    row.ConstantItem(70, Unit.Millimetre).Table(table =>
+                    row.ConstantItem(78, Unit.Millimetre).Table(table =>
                     {
-                        table.ColumnsDefinition(cd => { cd.RelativeColumn(); cd.RelativeColumn(); });
+                        table.ColumnsDefinition(cd => { cd.RelativeColumn(3); cd.RelativeColumn(2); });
                         void Meta(string label, string? value)
                         {
                             table.Cell().PaddingVertical(1).Text(label).FontColor("#6B7280");
@@ -82,6 +82,7 @@ public static class InvoicePdf
 
                         Meta("Rechnungsnr. / No.", i.Number ?? "–");
                         Meta("Datum / Date", i.IssueDate?.ToString("dd.MM.yyyy", De));
+                        Meta("Leistungsdatum / Supply", i.IssueDate?.ToString("dd.MM.yyyy", De));
                         Meta("Fällig / Due", i.DueDate?.ToString("dd.MM.yyyy", De));
                         if (i.BuyerReference is not null)
                         {

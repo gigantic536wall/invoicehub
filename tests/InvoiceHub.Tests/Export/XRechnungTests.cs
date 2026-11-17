@@ -115,8 +115,19 @@ public class XRechnungTests
     {
         var xml = Xml(Sample("services-outside-eu"));
         Assert.Equal("O", Value(xml, "//cac:TaxSubtotal/cac:TaxCategory/cbc:ID"));
-        Assert.Null(xml.XPathSelectElement("//cac:TaxSubtotal/cac:TaxCategory/cbc:Percent", Ns));
+        Assert.Equal("0", Value(xml, "//cac:TaxSubtotal/cac:TaxCategory/cbc:Percent")); // BR-DE-14
+        Assert.Null(xml.XPathSelectElement("//cac:ClassifiedTaxCategory/cbc:Percent", Ns));  // BR-O-05
         Assert.Null(xml.XPathSelectElement("//cac:PartyTaxScheme", Ns));
+        Assert.Equal("DE123456788", Value(xml, "//cac:AccountingSupplierParty//cac:PartyIdentification/cbc:ID")); // BR-CO-26
+    }
+
+    [Fact]
+    public void Intra_community_supply_has_delivery_date_and_country()
+    {
+        var xml = Xml(Sample("intra-community"));
+        Assert.Equal("K", Value(xml, "//cac:TaxSubtotal/cac:TaxCategory/cbc:ID"));
+        Assert.Equal("2026-11-18", Value(xml, "//cac:Delivery/cbc:ActualDeliveryDate"));
+        Assert.Equal("FR", Value(xml, "//cac:Delivery/cac:DeliveryLocation/cac:Address/cac:Country/cbc:IdentificationCode"));
     }
 
     [Fact]
