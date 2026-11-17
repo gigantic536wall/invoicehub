@@ -78,3 +78,39 @@ jobs:
         with:
           name: kosit-reports
           path: reports/
+
+  # Builds the production image and checks it end to end against PostgreSQL.
+  docker:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: invoicehub
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t invoicehub .
+      - name: Smoke test
+        run: |
+          docker run -d --name api --network host \
+            -e ConnectionStrings__Default="postgres://postgres:postgres@localhost:5432/invoicehub" \
+            -e Jwt__Key="$(openssl rand -base64 48)" \
+            -e Demo__Enabled=true \
+            invoicehub
+          for i in $(seq 1 30); do curl -fs localhost:8080/healthz && break; sleep 1; done
+          curl -fsS localhost:8080/docs -o /dev/null
+          token=$(curl -fsS -X POST localhost:8080/api/demo | jq -r .accessToken)
+          id=$(curl -fsS -H "Authorization: Bearer $token" localhost:8080/api/invoices | jq -r '.[] | select(.status=="Issued") | .id')
+          curl -fsS -H "Authorization: Bearer $token" "localhost:8080/api/invoices/$id/pdf" -o invoice.pdf
+          curl -fsS -H "Authorization: Bearer $token" "localhost:8080/api/invoices/$id/xrechnung" -o invoice.xml
+          head -c 5 invoice.pdf | grep -q '%PDF-'
+          grep -q 'xrechnung_3.0' invoice.xml
+          echo "image size: $(docker image inspect invoicehub --format '{{.Size}}' | numfmt --to=iec)"
+      - if: failure()
+        run: docker logs api

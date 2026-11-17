@@ -32,6 +32,7 @@ public sealed class ApiFactory : WebApplicationFactory<Program>, IAsyncLifetime
             {
                 ["ConnectionStrings:Default"] = test,
                 ["RateLimiting:AuthPerMinute"] = "100000",
+                ["Demo:Enabled"] = "true",
                 ["Jwt:Key"] = built["Jwt:Key"] ?? "test-signing-key-test-signing-key-123456",
             });
         });

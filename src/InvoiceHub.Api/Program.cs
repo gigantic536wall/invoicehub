@@ -14,8 +14,8 @@ using Scalar.AspNetCore;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddDbContext<AppDbContext>(o =>
-    o.UseNpgsql(builder.Configuration.GetConnectionString("Default")
-        ?? throw new InvalidOperationException("ConnectionStrings:Default is not set.")));
+    o.UseNpgsql(ConnectionStrings.Normalize(builder.Configuration.GetConnectionString("Default")
+        ?? throw new InvalidOperationException("ConnectionStrings:Default is not set."))));
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.Section));
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
@@ -57,7 +57,7 @@ builder.Services.AddExceptionHandler<ErrorHandler>();
 builder.Services.AddOpenApi(o => o.AddDocumentTransformer((doc, _, _) =>
 {
     doc.Info.Title = "InvoiceHub API";
-    doc.Info.Description = "Invoices for EU businesses: VAT rules, reverse charge, gapless numbering. Sign in via /api/auth/login and use the token as Bearer.";
+    doc.Info.Description = "Invoices for EU businesses: VAT rules, reverse charge, gapless numbering. Quick start: POST /api/demo returns a token for a demo account with sample data (or register via /api/auth/register), then use the token as Bearer.";
     doc.Components ??= new OpenApiComponents();
     doc.Components.SecuritySchemes ??= new Dictionary<string, IOpenApiSecurityScheme>();
     doc.Components.SecuritySchemes["Bearer"] = new OpenApiSecurityScheme
@@ -90,6 +90,7 @@ app.MapGet("/", () => Results.Redirect("/docs")).ExcludeFromDescription();
 app.MapGet("/healthz", () => Results.Ok(new { ok = true })).ExcludeFromDescription();
 
 app.MapAuthEndpoints();
+app.MapDemoEndpoints();
 app.MapCustomerEndpoints();
 app.MapInvoiceEndpoints();
 
