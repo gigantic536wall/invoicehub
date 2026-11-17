@@ -47,7 +47,7 @@ For XRechnung the seller profile (`PUT /api/me`) needs a contact name, phone and
 - [x] PostgreSQL with EF Core, gapless invoice numbers
 - [x] REST API with JWT auth and OpenAPI docs
 - [x] Integration tests against a real PostgreSQL database
-- [x] PDF invoices and XRechnung (UBL) export, validated with KoSIT in CI (86 tests in total)
+- [x] PDF invoices and XRechnung (UBL) export, validated with KoSIT in CI (87 tests in total)
 - [ ] Docker and live demo
 
 ## Run locally
